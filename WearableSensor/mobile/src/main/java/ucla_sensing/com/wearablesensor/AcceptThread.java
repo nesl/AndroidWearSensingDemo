@@ -207,9 +207,12 @@ public class AcceptThread extends Thread {
         int numAccelSamples = 0;
         int numGyroSamples = 0;
         int numGravSamples = 0;
+        int numLinearAccSamples = 0;
 
         int numberDroppedPackets = 0;
         int recoveredPackets = 0;
+
+        dataPackager dpackager = new dataPackager();
 
         public void collectBluetoothData() {}
 
@@ -217,10 +220,12 @@ public class AcceptThread extends Thread {
             int accelSamples = Character.getNumericValue(vals.charAt(1));
             int gyroSamples = Character.getNumericValue(vals.charAt(3));
             int gravSamples = Character.getNumericValue(vals.charAt(5));
+            int linAccSamples = Character.getNumericValue(vals.charAt(7));
             //Log.d(TAG, vals + " : " + accelSamples + "," + gyroSamples + "," + gravSamples);
             numAccelSamples += accelSamples;
             numGyroSamples  += gyroSamples;
             numGravSamples += gravSamples;
+            numLinearAccSamples += linAccSamples;
         }
 
         private void convertPacketToJSON(String packet) throws JSONException {
@@ -247,6 +252,10 @@ public class AcceptThread extends Thread {
                     SensorName = "GRAVITY";
                     sensorJSON = packetJSON.getJSONObject("GRAVITY");
                 }
+                else if(packetJSON.has("LINEAR_ACCELEROMETER")) {
+                    SensorName = "LINEAR_ACCELEROMETER";
+                    sensorJSON = packetJSON.getJSONObject("LINEAR_ACCELEROMETER");
+                }
 
                 if(sensorJSON != null) {
                     long timeStamp = sensorJSON.getLong("timestamp");
@@ -255,6 +264,10 @@ public class AcceptThread extends Thread {
                     double zVal = sensorJSON.getJSONArray("values").getDouble(2);
 
                     Log.d(TAG, SensorName + " Data: t=" + timeStamp + " vals: " + xVal + "," + yVal + "," + zVal);
+
+                    String fileMessage = timeStamp + "," + xVal + "," + yVal + "," + zVal;
+
+                    dpackager.exportData(SensorName, fileMessage);
                 }
 
             }
@@ -359,32 +372,34 @@ public class AcceptThread extends Thread {
             backupDataString = backupDataString.replaceAll("\\*", "");
 
             if(!isPerfect) {
-                if(dataString.length() > 8) {
-                    String vals = dataString.substring(0,7);
+                if(dataString.length() > 10) {
+                    String vals = dataString.substring(0,9);
                     addMotionSamples(vals);
 
                     //Log.d(TAG, vals);
                     if(backupDataString.length() > 9) {
                         //Log.d(TAG, backupDataString);
-                        vals = backupDataString.substring(1,8);
+                        vals = backupDataString.substring(1,10);
                         addMotionSamples(vals);
                         //Log.d(TAG, vals);
                     }
                 }
             }
             else {
-                if(dataString.length() > 8) {
-                    String vals = dataString.substring(0, 7);
+                if(dataString.length() > 10) {
+                    String vals = dataString.substring(0, 9);
                     addMotionSamples(vals);
                 }
             }
 
 
-            if(timeLastSampled + samplingDelay < System.currentTimeMillis() ) {  //If sufficient delay passed since the last time we output a sampling rate
-                Log.d(TAG, "Number of samples: " + numAccelSamples + " Accelerometer, " + numGyroSamples + " Gyro, " + numGravSamples + " Grav");
+            /*if(timeLastSampled + samplingDelay < System.currentTimeMillis() ) {  //If sufficient delay passed since the last time we output a sampling rate
+                Log.d(TAG, "Number of samples: " + numAccelSamples + " Accelerometer, " + numGyroSamples + " Gyro, " + numGravSamples +
+                        " Grav, " + numLinearAccSamples + " Linear acc");
                 numAccelSamples = 0;
                 numGyroSamples = 0;
                 numGravSamples = 0;
+                numLinearAccSamples = 0;
                 timeLastSampled = System.currentTimeMillis();
 
                 Log.d(TAG, "Dropped " + numberDroppedPackets);
@@ -395,6 +410,13 @@ public class AcceptThread extends Thread {
                     e.printStackTrace();
                 }
                 numberDroppedPackets = 0;
+            }*/
+
+            try {
+                convertPacketToJSON(dataString);
+            } catch (JSONException e) {
+                Log.d(TAG, "BAD CONVERSION FROM STRING TO JSON");
+                e.printStackTrace();
             }
 
             //Reset the Datastrings and backup strings

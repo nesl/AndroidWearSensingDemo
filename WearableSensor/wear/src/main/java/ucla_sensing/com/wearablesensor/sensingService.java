@@ -44,6 +44,8 @@ public class sensingService extends Service implements SensorEventListener {
     private int numAccelSamples = 0;
     private int numGyroSamples = 0;
     private int numGravSamples = 0;
+    private int numLinearAccSamples = 0;
+    private int numMagSamples = 0;
 
     private String mCurrentBuffer = "";
     private long mCurrentBufferBytes = 0;
@@ -134,7 +136,7 @@ public class sensingService extends Service implements SensorEventListener {
     public void writeToDevice(String s) throws IOException {
 
         //Add additional metadata about the current number of samples in this transmission.
-        s = "*[" + numAccelSamples + "," + numGyroSamples + "," + numGravSamples + "]" + s + "*";
+        s = "*[" + numAccelSamples + "," + numGyroSamples + "," + numGravSamples + "," + numLinearAccSamples + "]" + s + "*";
         //* signifies the start of an entry
 
         outputStream.write(s.getBytes());
@@ -143,6 +145,7 @@ public class sensingService extends Service implements SensorEventListener {
         numAccelSamples = 0;
         numGyroSamples = 0;
         numGravSamples = 0;
+        numLinearAccSamples = 0;
     }
 
 
@@ -220,20 +223,20 @@ public class sensingService extends Service implements SensorEventListener {
             }
 
             //These are extra sensors that I chose not to include, but there are many sensors that can be added beyond these commented ones, including HRV
-            /*
+
             if (linearAccelerationSensor != null) {
-                mSensorManager.registerListener(this, linearAccelerationSensor, SensorManager.SENSOR_DELAY_NORMAL);
+                mSensorManager.registerListener(this, linearAccelerationSensor, SensorManager.SENSOR_DELAY_FASTEST);
             } else {
                 Log.d(TAG, "No Linear Acceleration Sensor found");
             }
 
-            if (magneticFieldSensor != null) {
-                mSensorManager.registerListener(this, magneticFieldSensor, SensorManager.SENSOR_DELAY_NORMAL);
+            /*if (magneticFieldSensor != null) {
+                mSensorManager.registerListener(this, magneticFieldSensor, SensorManager.SENSOR_DELAY_FASTEST);
             } else {
                 Log.d(TAG, "No Magnetic Field Sensor found");
-            }
+            }*/
 
-            if (rotationVectorSensor != null) {
+            /*if (rotationVectorSensor != null) {
                 mSensorManager.registerListener(this, rotationVectorSensor, SensorManager.SENSOR_DELAY_NORMAL);
             } else {
                 Log.d(TAG, "No Rotation Vector Sensor found");
@@ -255,6 +258,15 @@ public class sensingService extends Service implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
 
+        if(!btSocket.isConnected()) {
+            try {
+                stopMeasurement();
+            } catch (IOException e) {
+                Log.d(TAG, "Stopping measurement!");
+                e.printStackTrace();
+            }
+        }
+
         int sensorType = event.sensor.getType();
         boolean isValidData = false;
 
@@ -275,13 +287,24 @@ public class sensingService extends Service implements SensorEventListener {
             numGravSamples++;
             isValidData = true;
         }
+        else if(sensorType == SENS_LINEAR_ACCELERATION) {
+            toSend = "{\"LINEAR_ACCELEROMETER\": {";
+            numLinearAccSamples++;
+            isValidData = true;
+        }
+        /*else if(sensorType == SENS_MAGNETIC_FIELD) {
+            toSend = "{\"MAGNETIC_FIELD\": {";
+            numMagSamples++;
+            isValidData = true;
+        }*/
 
         //Only if the sensor event falls into one of the three categories above, we send it.
         if(isValidData) {
 
             //We only stream data every second.
             if(System.currentTimeMillis() > lastTimeStartMillisec + 1000) {
-                Log.d(TAG, "Received: " + numAccelSamples + " accel," + numGyroSamples + " gyro," + numGravSamples + " grav");
+                Log.d(TAG, "Received: " + numAccelSamples + " accel," + numGyroSamples + " gyro," + numGravSamples + " grav, " +
+                numLinearAccSamples + " linear acc");
                 lastTimeStartMillisec = System.currentTimeMillis();
             }
 
