@@ -6,6 +6,7 @@ import json
 def writeToFile(sensorName, data):
 	writeFile = open(sensorName + ".csv", 'a')
 	writeFile.write(data)
+	writeFile.write("\n")
 	writeFile.close()
 	
 
