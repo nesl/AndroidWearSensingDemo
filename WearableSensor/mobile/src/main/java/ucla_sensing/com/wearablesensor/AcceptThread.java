@@ -4,6 +4,9 @@ package ucla_sensing.com.wearablesensor;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
+import android.content.Intent;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -25,11 +28,13 @@ public class AcceptThread extends Thread {
 
     readBluetoothThread btThread = null;
 
+    private Context mCTX = null;
+
 
     //This is the thread for accepting bluetooth connections, and spawns the readBluetoothThread
     // for reading data from the bluetooth socket.
-    public AcceptThread(BluetoothAdapter btAdapter, UUID uuid) {
-
+    public AcceptThread(BluetoothAdapter btAdapter, UUID uuid, Context ctx) {
+        mCTX = ctx;
         mBluetoothAdapter = btAdapter;
         Log.d(TAG, "Creating Server Thread for reading!");
         // Use a temporary object that is later assigned to mmServerSocket
@@ -42,6 +47,12 @@ public class AcceptThread extends Thread {
             Log.d(TAG, "Socket's listen() method failed", e);
         }
         mmServerSocket = tmp;
+    }
+
+    private void sendConnectionStatus() {
+        Intent in = new Intent();
+        in.setAction("DEVICE_CONNECTED");
+        LocalBroadcastManager.getInstance(mCTX).sendBroadcast(in);
     }
 
     public void run() {
@@ -57,7 +68,9 @@ public class AcceptThread extends Thread {
             }
 
             if (socket != null) {
+
                 Log.d(TAG, "Server accepted Connection!");
+                sendConnectionStatus();
                 // A connection was accepted. Perform work associated with
                 // the connection in a separate thread.
                 if(btThread == null) {
@@ -83,6 +96,7 @@ public class AcceptThread extends Thread {
     public void cancel() {
         try {
             Log.d(TAG, "Closing connection thread and interrupting reading thread");
+            sendConnectionStatus();
             mmServerSocket.close();
             btThread.cancel();
             btThread.interrupt();
@@ -214,7 +228,9 @@ public class AcceptThread extends Thread {
 
         dataPackager dpackager = new dataPackager();
 
-        public void collectBluetoothData() {}
+        public void collectBluetoothData() {
+            dpackager.start();
+        }
 
         private void addMotionSamples(String vals) {
             int accelSamples = Character.getNumericValue(vals.charAt(1));
@@ -228,49 +244,11 @@ public class AcceptThread extends Thread {
             numLinearAccSamples += linAccSamples;
         }
 
-        private void convertPacketToJSON(String packet) throws JSONException {
-
-
-            String packetData = packet.substring(packet.indexOf("]")+1);  //We want everything after the sampling information
-            String[] packetEntries = packetData.split("\\^");
-
-            for(String packetEntry : packetEntries) {
-                //Log.d(TAG, packetEntry);
-
-                JSONObject packetJSON = new JSONObject(packetEntry);
-                JSONObject sensorJSON = null;
-                String SensorName = "";
-                if(packetJSON.has("ACCELEROMETER")) {
-                    SensorName = "ACCELEROMETER";
-                    sensorJSON = packetJSON.getJSONObject("ACCELEROMETER");
-                }
-                else if(packetJSON.has("GYROSCOPE")) {
-                    SensorName = "GYROSCOPE";
-                    sensorJSON = packetJSON.getJSONObject("GYROSCOPE");
-                }
-                else if(packetJSON.has("GRAVITY")) {
-                    SensorName = "GRAVITY";
-                    sensorJSON = packetJSON.getJSONObject("GRAVITY");
-                }
-                else if(packetJSON.has("LINEAR_ACCELEROMETER")) {
-                    SensorName = "LINEAR_ACCELEROMETER";
-                    sensorJSON = packetJSON.getJSONObject("LINEAR_ACCELEROMETER");
-                }
-
-                if(sensorJSON != null) {
-                    long timeStamp = sensorJSON.getLong("timestamp");
-                    double xVal = sensorJSON.getJSONArray("values").getDouble(0);
-                    double yVal = sensorJSON.getJSONArray("values").getDouble(1);
-                    double zVal = sensorJSON.getJSONArray("values").getDouble(2);
-
-                    Log.d(TAG, SensorName + " Data: t=" + timeStamp + " vals: " + xVal + "," + yVal + "," + zVal);
-
-                    String fileMessage = timeStamp + "," + xVal + "," + yVal + "," + zVal;
-
-                    dpackager.exportData(SensorName, fileMessage);
-                }
-
-            }
+        private void sendDataReceived(String msg) {
+            Intent in = new Intent();
+            in.setAction("INFO_RECEIVED");
+            in.putExtra("data", msg);
+            LocalBroadcastManager.getInstance(mCTX).sendBroadcast(in);
         }
 
         public void parseString(byte[] buffer, int bytes) throws UnsupportedEncodingException {
@@ -393,9 +371,14 @@ public class AcceptThread extends Thread {
             }
 
 
-            /*if(timeLastSampled + samplingDelay < System.currentTimeMillis() ) {  //If sufficient delay passed since the last time we output a sampling rate
-                Log.d(TAG, "Number of samples: " + numAccelSamples + " Accelerometer, " + numGyroSamples + " Gyro, " + numGravSamples +
-                        " Grav, " + numLinearAccSamples + " Linear acc");
+            if(timeLastSampled + samplingDelay < System.currentTimeMillis() ) {  //If sufficient delay passed since the last time we output a sampling rate
+
+
+                String output = "Number of samples: " + numAccelSamples + " Accelerometer, " + numGyroSamples + " Gyro, " + numGravSamples +
+                        " Grav, " + numLinearAccSamples + " Linear acc";
+                Log.d(TAG, output);
+                sendDataReceived(output);
+
                 numAccelSamples = 0;
                 numGyroSamples = 0;
                 numGravSamples = 0;
@@ -403,21 +386,21 @@ public class AcceptThread extends Thread {
                 timeLastSampled = System.currentTimeMillis();
 
                 Log.d(TAG, "Dropped " + numberDroppedPackets);
-                try {
-                    convertPacketToJSON(dataString);
-                } catch (JSONException e) {
-                    Log.d(TAG, "BAD CONVERSION FROM STRING TO JSON");
-                    e.printStackTrace();
-                }
-                numberDroppedPackets = 0;
-            }*/
 
-            try {
-                convertPacketToJSON(dataString);
+
+
+
+                numberDroppedPackets = 0;
+            }
+
+            /*try {
+                dpackager.convertPacketToJSON(dataString);
             } catch (JSONException e) {
                 Log.d(TAG, "BAD CONVERSION FROM STRING TO JSON");
                 e.printStackTrace();
-            }
+            }*/
+            dpackager.directWriteToFile(dataString);
+
 
             //Reset the Datastrings and backup strings
             dataString = "";
@@ -426,5 +409,6 @@ public class AcceptThread extends Thread {
         }
 
     }
+
 
 }

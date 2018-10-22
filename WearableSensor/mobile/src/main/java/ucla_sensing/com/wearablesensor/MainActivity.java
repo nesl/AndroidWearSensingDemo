@@ -6,10 +6,14 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.ParcelUuid;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.telephony.TelephonyManager;
@@ -25,6 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import android.provider.Settings.Secure;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
@@ -35,10 +40,20 @@ public class MainActivity extends AppCompatActivity {
 
     private String UUIDStr = "71b37966-2466-45b7-ae2c-f42851fcac8e";
 
+    private TextView mConnectionText;
+    private TextView mDataBoxText;
+
+    private boolean isConnected = false;
+
+    dataPackager dpackager = new dataPackager();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        mConnectionText = findViewById(R.id.connectStatus);
+        mDataBoxText = findViewById(R.id.dataBox);
 
         try {
             initBluetooth();  //Initiate the Bluetooth
@@ -54,6 +69,9 @@ public class MainActivity extends AppCompatActivity {
 
 
         requestExternalWriteAccess();
+
+        LocalBroadcastManager.getInstance(MainActivity.this).registerReceiver(connBroadcastReceiver, new IntentFilter("DEVICE_CONNECTED"));
+        LocalBroadcastManager.getInstance(MainActivity.this).registerReceiver(dataBroadcastReceiver, new IntentFilter("INFO_RECEIVED"));
     }
 
     public void requestExternalWriteAccess() {
@@ -64,6 +82,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private BroadcastReceiver connBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if(!isConnected) {
+                Log.d(TAG, "CONNECTED");
+                mConnectionText.setText("CONNECTED TO WATCH");
+            }
+            else {
+                Log.d(TAG, "DISCONNECTED");
+                mConnectionText.setText("DISCONNECTED FROM WATCH");
+            }
+
+
+        }
+    };
+    private BroadcastReceiver dataBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String data = intent.getStringExtra("data");
+            Log.d(TAG, data);
+            //mConnectionText.setText("CONNECTED TO WATCH");
+            mDataBoxText.setText(data);
+        }
+    };
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -72,6 +115,24 @@ public class MainActivity extends AppCompatActivity {
 
         btThread.cancel();
         btThread.interrupt();
+
+    }
+
+    //Stops the Bluetooth connection, distributes the data from the raw text file into each sensor
+    public void stopAndSaveData(View view) {
+
+        Log.d(TAG, "STOP");
+        btThread.cancel();
+        btThread.interrupt();
+
+        mConnectionText.setText("Closed Connection!");
+
+        /*try {
+            dpackager.unpackageFromRaw();
+        } catch (IOException e) {
+            Log.d(TAG, "ERROR IN UNPACKING DATA");
+            e.printStackTrace();
+        }*/
     }
 
     /*
@@ -92,7 +153,7 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void run() {
-                        btThread = new AcceptThread(blueAdapter, UUID.fromString(UUIDStr));
+                        btThread = new AcceptThread(blueAdapter, UUID.fromString(UUIDStr), getApplicationContext());
                         btThread.run();
                     }
                 }).start();
