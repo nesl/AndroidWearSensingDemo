@@ -16,7 +16,7 @@ def convertEntryToJSON(packetEntry):
 	jsonEntry = json.loads(packetEntry)
 	sensorJSON = jsonEntry  #IDK how to set this to a null
 	sensorName = ""
-	
+	#print(sensorJSON)
 	#ACCELEROMETER
 	if "ACCELEROMETER" in jsonEntry:
 		sensorName = "ACCELEROMETER"
@@ -37,7 +37,11 @@ def convertEntryToJSON(packetEntry):
 		sensorName = "LINEAR_ACCELEROMETER"
 		sensorJSON = jsonEntry["LINEAR_ACCELEROMETER"]
 		#print(jsonEntry["LINEAR_ACCELEROMETER"])
+	
+	else:
+		return
 		
+	#print(sensorJSON)
 	entryTimestamp = sensorJSON["timestamp"]
 	entryValues = sensorJSON["values"]
 	output = sensorName + "," + str(entryTimestamp) + "," + str(entryValues[0]) + "," + str(entryValues[1]) + "," + str(entryValues[2])
