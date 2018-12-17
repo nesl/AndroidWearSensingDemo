@@ -49,6 +49,10 @@ public class AcceptThread extends Thread {
         mmServerSocket = tmp;
     }
 
+    public void beginSavingData() {
+        btThread.beginSavingData();
+    }
+
     private void sendConnectionStatus() {
         Intent in = new Intent();
         in.setAction("DEVICE_CONNECTED");
@@ -116,9 +120,14 @@ public class AcceptThread extends Thread {
         InputStream inStream;
 
         boolean stop = false;
+        collectBluetoothData ctdThread = null;
 
         readBluetoothThread(BluetoothSocket bsock) {
             btSock = bsock;
+        }
+
+        public void beginSavingData() {
+            ctdThread.beginSavingData();
         }
 
         public void run() {
@@ -127,7 +136,7 @@ public class AcceptThread extends Thread {
             int bytes = 0;
             int b = BUFFER_SIZE;
 
-            collectBluetoothData ctdThread = new collectBluetoothData();
+            ctdThread = new collectBluetoothData();
             ctdThread.run();
 
             long lastSamplingTime = 0;
@@ -225,11 +234,16 @@ public class AcceptThread extends Thread {
 
         int numberDroppedPackets = 0;
         int recoveredPackets = 0;
+        boolean savingData = false;
 
         dataPackager dpackager = new dataPackager();
 
         public void collectBluetoothData() {
             dpackager.start();
+        }
+
+        public void beginSavingData() {
+            savingData = true;
         }
 
         private void addMotionSamples(String vals) {
@@ -399,7 +413,9 @@ public class AcceptThread extends Thread {
                 Log.d(TAG, "BAD CONVERSION FROM STRING TO JSON");
                 e.printStackTrace();
             }*/
-            dpackager.directWriteToFile(dataString);
+            if(savingData) {
+                dpackager.directWriteToFile(dataString);
+            }
 
 
             //Reset the Datastrings and backup strings

@@ -118,6 +118,11 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    public void startSavingData(View view) {
+        Log.d(TAG, "Begin Saving Data!");
+        btThread.beginSavingData();
+    }
+
     //Stops the Bluetooth connection, distributes the data from the raw text file into each sensor
     public void stopAndSaveData(View view) {
 

@@ -51,7 +51,7 @@ public class sensingService extends Service implements SensorEventListener {
     private long lastTimeSampledGyro = 0;
     private long lastTimeSampledGrav = 0;
     private long lastTimeSampledLinearAcc = 0;
-    private long throttle_delay = 8;  //At least 9 milliseconds must pass before sending data
+    private long throttle_delay = 8;  //At least 8 milliseconds must pass before sending data
 
     private String mCurrentBuffer = "";
     private long mCurrentBufferBytes = 0;
