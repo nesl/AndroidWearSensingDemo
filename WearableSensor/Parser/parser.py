@@ -13,7 +13,10 @@ def writeToFile(sensorName, data):
 
 def convertEntryToJSON(packetEntry):
 	#print(packetEntry)
-	jsonEntry = json.loads(packetEntry)
+	try:
+		jsonEntry = json.loads(packetEntry)
+	except:  #If we hit a bad packet, just skip it
+		return
 	sensorJSON = jsonEntry  #IDK how to set this to a null
 	sensorName = ""
 	#print(sensorJSON)
@@ -42,9 +45,12 @@ def convertEntryToJSON(packetEntry):
 		return
 		
 	#print(sensorJSON)
-	entryTimestamp = sensorJSON["timestamp"]
-	entryValues = sensorJSON["values"]
-	output = sensorName + "," + str(entryTimestamp) + "," + str(entryValues[0]) + "," + str(entryValues[1]) + "," + str(entryValues[2])
+	try:
+		entryTimestamp = sensorJSON["timestamp"]
+		entryValues = sensorJSON["values"]
+		output = str(entryTimestamp) + "," + str(entryValues[0]) + "," + str(entryValues[1]) + "," + str(entryValues[2])
+	except:  #If we are missing a value, just skip this packet
+		return
 	#print(output)
 	writeToFile(sensorName, output)
 
@@ -65,7 +71,10 @@ def separatePackets(line):
 			#Grab everything between []
 			sampleVals = packetEntry[1:indexEndOfSampleCount]
 			sampleVals = sampleVals.split(',')
-			sampleVals = [int(x) for x in sampleVals]
+			try:
+				sampleVals = [int(x) for x in sampleVals]
+			except:  #If something breaks, just keep going
+				continue
 			#print(packetEntry[indexEndOfSampleCount+1:])
 			convertEntryToJSON(packetEntry[indexEndOfSampleCount+1:])
 		#This is just an ordinary packet entry

@@ -255,7 +255,7 @@ public class AcceptThread extends Thread {
             String message = new String(buffer, "UTF-8");
             String fixedOutput = message.substring(0, bytes);
 
-
+            Log.d(TAG, "Packet: " + fixedOutput);
             boolean isPerfect = false;
 
             //This is a perfect packet - no need to do extra processing

@@ -47,9 +47,15 @@ public class sensingService extends Service implements SensorEventListener {
     private int numLinearAccSamples = 0;
     private int numMagSamples = 0;
 
+    private long lastTimeSampledAcc = 0;
+    private long lastTimeSampledGyro = 0;
+    private long lastTimeSampledGrav = 0;
+    private long lastTimeSampledLinearAcc = 0;
+    private long throttle_delay = 8;  //At least 9 milliseconds must pass before sending data
+
     private String mCurrentBuffer = "";
     private long mCurrentBufferBytes = 0;
-    private long BUFFER_LIMIT = 1000;  //Maximum 500 bytes per transmitted 'packet'
+    private long BUFFER_LIMIT = 2000;  //Maximum 500 bytes per transmitted 'packet'
 
     private String uuidStr = "71b37966-2466-45b7-ae2c-f42851fcac8e";
 
@@ -138,7 +144,7 @@ public class sensingService extends Service implements SensorEventListener {
         //Add additional metadata about the current number of samples in this transmission.
         s = "*[" + numAccelSamples + "," + numGyroSamples + "," + numGravSamples + "," + numLinearAccSamples + "]" + s + "*";
         //* signifies the start of an entry
-
+        //Log.d(TAG, "Writing to device: " + s);
         outputStream.write(s.getBytes());
 
         //Reset the counts.
@@ -271,26 +277,43 @@ public class sensingService extends Service implements SensorEventListener {
         boolean isValidData = false;
 
         String toSend = "";
+        long currentTimeMS = System.currentTimeMillis();
 
         if(sensorType == SENS_ACCELEROMETER) {
             toSend = "{\"ACCELEROMETER\": {";
-            numAccelSamples++;
-            isValidData = true;
+
+            if(currentTimeMS >= lastTimeSampledAcc + throttle_delay) {
+                numAccelSamples++;
+                lastTimeSampledAcc = currentTimeMS;
+                isValidData = true;
+            }
         }
         else if(sensorType == SENS_GYROSCOPE) {
             toSend = "{\"GYROSCOPE\": {";
-            numGyroSamples++;
-            isValidData = true;
+
+            if(currentTimeMS >= lastTimeSampledGyro + throttle_delay) {
+                numGyroSamples++;
+                lastTimeSampledGyro = currentTimeMS;
+                isValidData = true;
+            }
         }
         else if(sensorType == SENS_GRAVITY) {
             toSend = "{\"GRAVITY\": {";
-            numGravSamples++;
-            isValidData = true;
+
+            if(currentTimeMS >= lastTimeSampledGrav + throttle_delay) {
+                numGravSamples++;
+                lastTimeSampledGrav = currentTimeMS;
+                isValidData = true;
+            }
         }
         else if(sensorType == SENS_LINEAR_ACCELERATION) {
             toSend = "{\"LINEAR_ACCELEROMETER\": {";
-            numLinearAccSamples++;
-            isValidData = true;
+
+            if(currentTimeMS >= lastTimeSampledLinearAcc + throttle_delay) {
+                numLinearAccSamples++;
+                lastTimeSampledLinearAcc = currentTimeMS;
+                isValidData = true;
+            }
         }
         /*else if(sensorType == SENS_MAGNETIC_FIELD) {
             toSend = "{\"MAGNETIC_FIELD\": {";
@@ -299,6 +322,7 @@ public class sensingService extends Service implements SensorEventListener {
         }*/
 
         //Only if the sensor event falls into one of the three categories above, we send it.
+        //We also only buffer this data if sufficient time has passed - this is to throttle the amount of data sent.
         if(isValidData) {
 
             //We only stream data every second.
