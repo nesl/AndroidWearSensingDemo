@@ -4,8 +4,6 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.bluetooth.le.ScanCallback;
-import android.bluetooth.le.ScanResult;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -16,7 +14,6 @@ import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
@@ -51,11 +48,17 @@ public class sensingService extends Service implements SensorEventListener {
     private long lastTimeSampledGyro = 0;
     private long lastTimeSampledGrav = 0;
     private long lastTimeSampledLinearAcc = 0;
-    private long throttle_delay = 8;  //At least 8 milliseconds must pass before sending data
+
+    private long numWrittenAccelSamples = 0;
+    private long numWrittenGyroSamples = 0;
+    private long numWrittenLinearAccSamples = 0;
+    private long numWrittenMagSamples = 0;
+
+    private int throttle_delay = 8;  //At least 8 milliseconds must pass before sending data
 
     private String mCurrentBuffer = "";
     private long mCurrentBufferBytes = 0;
-    private long BUFFER_LIMIT = 2000;  //Maximum 500 bytes per transmitted 'packet'
+    private long BUFFER_LIMIT = 2000;  //Maximum bytes per transmitted 'packet'
 
     private String uuidStr = "71b37966-2466-45b7-ae2c-f42851fcac8e";
 
@@ -142,16 +145,16 @@ public class sensingService extends Service implements SensorEventListener {
     public void writeToDevice(String s) throws IOException {
 
         //Add additional metadata about the current number of samples in this transmission.
-        s = "*[" + numAccelSamples + "," + numGyroSamples + "," + numGravSamples + "," + numLinearAccSamples + "]" + s + "*";
+        s = "*[" + numWrittenAccelSamples + "," + numWrittenGyroSamples + "," + numWrittenMagSamples + "," + numWrittenLinearAccSamples + "]" + s + "*";
         //* signifies the start of an entry
         //Log.d(TAG, "Writing to device: " + s);
         outputStream.write(s.getBytes());
 
         //Reset the counts.
-        numAccelSamples = 0;
-        numGyroSamples = 0;
-        numGravSamples = 0;
-        numLinearAccSamples = 0;
+        numWrittenAccelSamples = 0;
+        numWrittenGyroSamples = 0;
+        numWrittenLinearAccSamples = 0;
+        numWrittenMagSamples = 0;
     }
 
 
@@ -167,6 +170,23 @@ public class sensingService extends Service implements SensorEventListener {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public int onStartCommand(Intent intent,
+                              int flags,
+                              int startId) {
+
+        Log.d(TAG, "onStartCommand");
+
+        //If we get a valid intent containing the new frequency throttling
+        int altered_freq = intent.getIntExtra("ALTER_FREQ", -1);
+        if(altered_freq != -1) {
+            throttle_delay = altered_freq;
+            Log.d(TAG, "Changing Frequency to " + Integer.toString(throttle_delay));
+        }
+
+        return START_STICKY;
     }
 
 
@@ -284,6 +304,7 @@ public class sensingService extends Service implements SensorEventListener {
 
             if(currentTimeMS >= lastTimeSampledAcc + throttle_delay) {
                 numAccelSamples++;
+                numWrittenAccelSamples++;
                 lastTimeSampledAcc = currentTimeMS;
                 isValidData = true;
             }
@@ -293,6 +314,7 @@ public class sensingService extends Service implements SensorEventListener {
 
             if(currentTimeMS >= lastTimeSampledGyro + throttle_delay) {
                 numGyroSamples++;
+                numWrittenGyroSamples++;
                 lastTimeSampledGyro = currentTimeMS;
                 isValidData = true;
             }
@@ -302,6 +324,7 @@ public class sensingService extends Service implements SensorEventListener {
 
             if(currentTimeMS >= lastTimeSampledGrav + throttle_delay) {
                 numGravSamples++;
+                numWrittenMagSamples++;
                 lastTimeSampledGrav = currentTimeMS;
                 isValidData = true;
             }
@@ -311,6 +334,7 @@ public class sensingService extends Service implements SensorEventListener {
 
             if(currentTimeMS >= lastTimeSampledLinearAcc + throttle_delay) {
                 numLinearAccSamples++;
+                numWrittenLinearAccSamples++;
                 lastTimeSampledLinearAcc = currentTimeMS;
                 isValidData = true;
             }
@@ -330,6 +354,11 @@ public class sensingService extends Service implements SensorEventListener {
                 Log.d(TAG, "Received: " + numAccelSamples + " accel," + numGyroSamples + " gyro," + numGravSamples + " grav, " +
                 numLinearAccSamples + " linear acc");
                 lastTimeStartMillisec = System.currentTimeMillis();
+
+                numAccelSamples = 0;
+                numGyroSamples = 0;
+                numGravSamples = 0;
+                numLinearAccSamples = 0;
             }
 
 
